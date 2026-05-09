@@ -3,73 +3,76 @@ const multer = require("multer");
 const axios = require("axios");
 const fs = require("fs");
 const cors = require("cors");
+const FormData = require("form-data");
 
 const app = express();
 
-// =======================
-// ✅ CORS FIX (IMPORTANT)
-// =======================
-app.use(cors({
-    origin: "*"
-}));
+// =====================
+// ✅ FIX CORS
+// =====================
+app.use(cors({ origin: "*" }));
 
 app.use(express.json());
 
-// =======================
-// 📦 FILE UPLOAD SETUP
-// =======================
+// =====================
+// 📦 upload setup
+// =====================
 const upload = multer({ dest: "/tmp" });
 
-// =======================
-// 📤 UPLOAD VIDEO ROUTE
-// =======================
+// =====================
+// 🚀 UPLOAD VIDEO
+// =====================
 app.post("/upload-video", upload.single("file"), async (req, res) => {
 
     try {
 
-        // ❌ check file
         if (!req.file) {
             return res.status(400).json({
                 error: "No file uploaded"
             });
         }
 
-        // 📂 read file
-        const file = fs.readFileSync(req.file.path);
+        // ✅ convert file → FormData (IMPORTANT FIX 422)
+        const form = new FormData();
+
+        form.append(
+            "file",
+            fs.createReadStream(req.file.path),
+            req.file.originalname
+        );
 
         // 🤖 send to Python AI
         const result = await axios.post(
             "https://ai-ouub.onrender.com/video-dub",
-            file,
+            form,
             {
-                headers: {
-                    "Content-Type": "application/octet-stream"
-                }
+                headers: form.getHeaders(),
+                maxBodyLength: Infinity,
+                maxContentLength: Infinity
             }
         );
 
-        // ✅ return result
         return res.json(result.data);
 
     } catch (err) {
 
-        console.log("ERROR:", err.message);
+        console.log("ERROR:", err.response?.data || err.message);
 
         return res.status(500).json({
-            error: "Server error",
+            error: "Server failed",
             detail: err.message
         });
     }
 });
 
-// =======================
-// 🎥 SERVE FILES
-// =======================
+// =====================
+// 🎥 serve files
+// =====================
 app.use("/files", express.static("/tmp"));
 
-// =======================
-// 🚀 START SERVER
-// =======================
+// =====================
+// 🚀 start server
+// =====================
 app.listen(3000, () => {
     console.log("Server running on port 3000");
 });
