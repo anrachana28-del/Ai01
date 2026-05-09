@@ -1,41 +1,75 @@
-const express=require("express");
-const multer=require("multer");
-const axios=require("axios");
-const fs=require("fs");
+const express = require("express");
+const multer = require("multer");
+const axios = require("axios");
+const fs = require("fs");
+const cors = require("cors");
 
-const app=express();
-const upload=multer({dest:"/tmp"});
+const app = express();
 
-app.post("/upload-video",upload.single("file"),async(req,res)=>{
+// =======================
+// ✅ CORS FIX (IMPORTANT)
+// =======================
+app.use(cors({
+    origin: "*"
+}));
 
-    const file=fs.readFileSync(req.file.path);
+app.use(express.json());
 
-    try{
+// =======================
+// 📦 FILE UPLOAD SETUP
+// =======================
+const upload = multer({ dest: "/tmp" });
 
-        const result=await axios.post(
+// =======================
+// 📤 UPLOAD VIDEO ROUTE
+// =======================
+app.post("/upload-video", upload.single("file"), async (req, res) => {
+
+    try {
+
+        // ❌ check file
+        if (!req.file) {
+            return res.status(400).json({
+                error: "No file uploaded"
+            });
+        }
+
+        // 📂 read file
+        const file = fs.readFileSync(req.file.path);
+
+        // 🤖 send to Python AI
+        const result = await axios.post(
             "https://ai-ouub.onrender.com/video-dub",
             file,
             {
-                headers:{
-                    "Content-Type":"application/octet-stream"
+                headers: {
+                    "Content-Type": "application/octet-stream"
                 }
             }
         );
 
-        res.json(result.data);
+        // ✅ return result
+        return res.json(result.data);
 
-    }catch(err){
+    } catch (err) {
 
-        res.status(500).json({
-            error:err.message
+        console.log("ERROR:", err.message);
+
+        return res.status(500).json({
+            error: "Server error",
+            detail: err.message
         });
-
     }
-
 });
 
-app.use("/files",express.static("/tmp"));
+// =======================
+// 🎥 SERVE FILES
+// =======================
+app.use("/files", express.static("/tmp"));
 
-app.listen(3000,()=>{
-    console.log("Node running");
+// =======================
+// 🚀 START SERVER
+// =======================
+app.listen(3000, () => {
+    console.log("Server running on port 3000");
 });
